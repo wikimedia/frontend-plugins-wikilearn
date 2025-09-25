@@ -1,1 +1,0 @@
-## Frontend plugins for Wikilearn

@@ -1,1 +1,1 @@
-export { default as UsernameMention } from './UsernameMention';
+export {UsernameMention} from './UsernameMention';
