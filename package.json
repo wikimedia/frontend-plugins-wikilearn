@@ -8,10 +8,14 @@
       "import": "./dist/wikilearn.es.js",
       "require": "./dist/wikilearn.cjs.js"
     },
-    "./discussions": "./packages/discussions/index.jsx",
-    "./learning": "./packages/learning/index.jsx",
-    "./profile": "./packages/profile/index.jsx"
+    "./discussions": {
+      "import": "./dist/wikilearn.es.js",
+      "require": "./dist/wikilearn.cjs.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",

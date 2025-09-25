@@ -1,1 +1,1 @@
-export * as discussions from './discussions';
+export * from './discussions';
