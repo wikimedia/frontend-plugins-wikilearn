@@ -1,13 +1,15 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-// library build
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
 export default defineConfig({
   plugins: [react()],
   build: {
     lib: {
-      entry: 'src/index.jsx',   // your public API
-      name: 'frontend-plugins-wikilearn',
-      fileName: (format) => `frontend-plugins-wikilearn.${format}.js`,
+      entry: path.resolve(__dirname, 'src/index.jsx'),
+      name: 'FrontendPluginsWikilearn',
+      formats: ['es', 'cjs'],
+      fileName: (format) => `wikilearn.${format}.js`,
     },
     rollupOptions: {
       external: ['react', 'react-dom'],
@@ -19,4 +21,4 @@ export default defineConfig({
       },
     },
   },
-})
+});
