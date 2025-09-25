@@ -1,6 +1,6 @@
 {
   "name": "frontend-plugins-wikilearn",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Wikilearn Frontend Plugins",
   "main": "dist/index.js",
   "publishConfig": {
