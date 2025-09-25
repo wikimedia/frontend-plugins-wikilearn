@@ -3,16 +3,6 @@
   "version": "0.1.0",
   "main": "dist/wikilearn.cjs.js",
   "module": "dist/wikilearn.es.js",
-  "exports": {
-    ".": {
-      "import": "./dist/wikilearn.es.js",
-      "require": "./dist/wikilearn.cjs.js"
-    },
-    "./discussions": {
-      "import": "./dist/wikilearn.es.js",
-      "require": "./dist/wikilearn.cjs.js"
-    }
-  },
   "files": [
     "dist"
   ],
