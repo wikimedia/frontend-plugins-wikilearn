@@ -1,1 +1,5 @@
-export * as discussions from './discussions';
+import UsernameMention from './discussions/UsernameMention';
+
+export {
+    UsernameMention,
+};
