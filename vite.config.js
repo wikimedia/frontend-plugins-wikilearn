@@ -1,24 +1,19 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
-
-export default defineConfig({
-  plugins: [react()],
+export default {
   build: {
     lib: {
-      entry: path.resolve(__dirname, 'src/index.jsx'),
-      name: 'FrontendPluginsWikilearn',
-      formats: ['es', 'cjs'],
-      fileName: (format) => `wikilearn.${format}.js`,
+      entry: './src/index.jsx',
+      name: 'wikilearn',
+      fileName: 'wikilearn',
+      formats: ['es'],   // emit ESM
     },
     rollupOptions: {
-      external: ['react', 'react-dom'],
-      output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-        },
-      },
+      external: ['react', 'react-dom'], // don’t bundle React
     },
+    target: 'es2018', // important: ensures JSX transpiles to React.createElement
   },
-});
+  esbuild: {
+    jsx: 'transform', // converts JSX → React.createElement
+    jsxFactory: 'React.createElement',
+    jsxFragment: 'React.Fragment',
+  },
+};
