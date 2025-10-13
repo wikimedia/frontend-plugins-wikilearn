@@ -26,6 +26,31 @@ const UsernameMention = ({ editor, authClient, getConfig }) => {
   const [userSuggestions, setUserSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const mentionSearchTimeoutRef = useRef(null);
+  const [resolvedEditor, setResolvedEditor] = useState(editor || null);
+
+  // Attempt to resolve TinyMCE editor instance if not provided or null
+  useEffect(() => {
+    if (editor) {
+      setResolvedEditor(editor);
+      return undefined;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 25; // ~5s at 200ms
+    const intervalId = setInterval(() => {
+      attempts += 1;
+      const maybeTinyMCE = typeof window !== 'undefined' ? window.tinymce : null;
+      const active = maybeTinyMCE?.activeEditor || maybeTinyMCE?.editors?.[0];
+      if (active) {
+        setResolvedEditor(active);
+        clearInterval(intervalId);
+      } else if (attempts >= maxAttempts) {
+        clearInterval(intervalId);
+      }
+    }, 200);
+
+    return () => clearInterval(intervalId);
+  }, [editor]);
 
   const searchUsers = useCallback(async (query) => {
     if (!query || query.length < 2) {
@@ -36,7 +61,7 @@ const UsernameMention = ({ editor, authClient, getConfig }) => {
 
     try {
       const { data } = await authClient().get(
-        `${getConfig().LMS_BASE_URL}/ping_mention/user/?search=${encodeURIComponent(query)}`
+        `${getConfig().LMS_BASE_URL}/messenger/api/v0/user/?search=${encodeURIComponent(query)}`
       );
 
       setUserSuggestions(data?.results || []);
@@ -48,40 +73,67 @@ const UsernameMention = ({ editor, authClient, getConfig }) => {
     }
   }, []);
 
+  const handleUsernameSelect = useCallback(
+    (username) => {
+      if (!resolvedEditor) return;
+      
+      const rng = resolvedEditor.selection.getRng();
+      const container = rng.startContainer;
+      const offset = rng.startOffset;
 
-  const handleUsernameSelect = useCallback((username) => {
-    if (!editor) return;
-    const content = editor.getContent({ format: 'text' });
-    const selection = editor.selection.getRng();
-    const cursorPosition = selection.startOffset;
+      // Only handle when we're inside a text node
+      const text = container && container.nodeType === Node.TEXT_NODE ? container.data : null;
 
-    const lastAtIndex = content.substring(0, cursorPosition).lastIndexOf('@');
-    if (lastAtIndex !== -1) {
-      const beforeAt = content.substring(0, lastAtIndex + 1);
-      const afterCursor = content.substring(cursorPosition);
-      const newContent = beforeAt + username + ' ' + afterCursor;
-      editor.setContent(newContent);
-    }
+      if (!text) {
+        setShowSuggestions(false);
+        setUserSuggestions([]);
+        return;
+      }
 
-    setShowSuggestions(false);
-    setUserSuggestions([]);
-  }, []);
+      const beforeCursor = text.slice(0, offset);
+      const atIndexInNode = beforeCursor.lastIndexOf('@');
+      if (atIndexInNode === -1) {
+        setShowSuggestions(false);
+        setUserSuggestions([]);
+        return;
+      }
+
+      // Replace from '@' to cursor with the selected username
+      const doc = container.ownerDocument;
+      const replaceRange = doc.createRange();
+      replaceRange.setStart(container, atIndexInNode);
+      replaceRange.setEnd(container, offset);
+      resolvedEditor.selection.setRng(replaceRange);
+      resolvedEditor.insertContent(`@${username}&nbsp;`);
+
+      setShowSuggestions(false);
+      setUserSuggestions([]);
+    },
+    [resolvedEditor]
+  );
 
   useEffect(() => {
-    if (!editor) return undefined;
+    if (!resolvedEditor) return undefined;
 
     const keyupHandler = () => {
       clearTimeout(mentionSearchTimeoutRef.current);
 
       mentionSearchTimeoutRef.current = setTimeout(() => {
-        const content = editor.getContent({ format: 'text' });
-        const selection = editor.selection.getRng();
-        const cursorPosition = selection.startOffset;
-        const lastAtIndex = content.substring(0, cursorPosition).lastIndexOf('@');
+        const rng = resolvedEditor.selection.getRng();
+        const container = rng?.startContainer;
+        const offset = rng?.startOffset ?? 0;
+        const text = container && container.nodeType === Node.TEXT_NODE ? container.data : '';
 
-        if (lastAtIndex !== -1) {
-          const mentionQuery = content.substring(lastAtIndex + 1, cursorPosition).trim();
+        if (!text) {
+          setShowSuggestions(false);
+          return;
+        }
 
+        const beforeCursor = text.slice(0, offset);
+        const atIndexInNode = beforeCursor.lastIndexOf('@');
+
+        if (atIndexInNode !== -1) {
+          const mentionQuery = beforeCursor.slice(atIndexInNode + 1).trim();
           if (mentionQuery && !mentionQuery.includes(' ')) {
             searchUsers(mentionQuery);
           } else {
@@ -97,17 +149,17 @@ const UsernameMention = ({ editor, authClient, getConfig }) => {
       setTimeout(() => setShowSuggestions(false), 200);
     };
 
-    editor.on('keyup', keyupHandler);
-    editor.on('blur', blurHandler);
+    resolvedEditor.on('keyup', keyupHandler);
+    resolvedEditor.on('blur', blurHandler);
 
     return () => {
-      if (editor) {
-        editor.off('keyup', keyupHandler);
-        editor.off('blur', blurHandler);
+      if (resolvedEditor) {
+        resolvedEditor.off('keyup', keyupHandler);
+        resolvedEditor.off('blur', blurHandler);
       }
       clearTimeout(mentionSearchTimeoutRef.current);
     };
-  }, [editor, searchUsers]);
+  }, [resolvedEditor, searchUsers]);
 
   return (
     <>
