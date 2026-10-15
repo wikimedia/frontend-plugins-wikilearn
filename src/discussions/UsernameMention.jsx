@@ -104,7 +104,17 @@ const UsernameMention = ({ editor, authClient, getConfig }) => {
       replaceRange.setStart(container, atIndexInNode);
       replaceRange.setEnd(container, offset);
       resolvedEditor.selection.setRng(replaceRange);
-      resolvedEditor.insertContent(`@${username}&nbsp;`);
+
+      // Usernames may contain spaces and punctuation, so the backend can't tell where a
+      // plain-text "@username" ends. Carry the exact username in a data attribute instead.
+      // contenteditable="false" makes the mention a single unit that can't be partially edited.
+      const { dom } = resolvedEditor;
+      const mention = dom.create(
+        'span',
+        { class: 'wikilearn-mention', 'data-username': username, contenteditable: 'false' },
+        dom.encode(`@${username}`),
+      );
+      resolvedEditor.insertContent(`${dom.getOuterHTML(mention)}&nbsp;`);
 
       setShowSuggestions(false);
       setUserSuggestions([]);
