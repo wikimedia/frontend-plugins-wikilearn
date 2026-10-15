@@ -3,7 +3,7 @@ import {
   act, fireEvent, render, screen,
 } from '@testing-library/react';
 
-import UsernameMention from './UsernameMention';
+import UsernameMention, { getCourseIdFromPath } from './UsernameMention';
 
 const ENTITIES = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -40,9 +40,32 @@ const createEditor = (text) => {
   };
 };
 
+const COURSE_ID = 'course-v1:Org+Num+Run';
+const getConfig = () => ({ LMS_BASE_URL: 'http://lms' });
+
+const typeMention = (editor) => {
+  act(() => {
+    editor.handlers.keyup();
+    jest.advanceTimersByTime(300);
+  });
+};
+
+describe('getCourseIdFromPath', () => {
+  it.each([
+    [`/discussions/${COURSE_ID}/posts`, COURSE_ID],
+    [`/discussions/${COURSE_ID}`, COURSE_ID],
+    ['/discussions/course-v1%3AOrg%2BNum%2BRun/topics', COURSE_ID],
+    ['/discussions/', null],
+    ['', null],
+  ])('%s', (pathname, expected) => {
+    expect(getCourseIdFromPath(pathname)).toBe(expected);
+  });
+});
+
 describe('UsernameMention', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    window.history.pushState({}, '', `/discussions/${COURSE_ID}/posts`);
   });
 
   afterEach(() => {
@@ -55,17 +78,11 @@ describe('UsernameMention', () => {
     'Tom & "Jerry"',
   ])('inserts a mention that carries the exact username: %s', async (username) => {
     const editor = createEditor('Hi @Ja');
-    const authClient = () => ({
-      get: jest.fn().mockResolvedValue({ data: { results: [{ username }] } }),
-    });
-    const getConfig = () => ({ LMS_BASE_URL: 'http://lms' });
+    const get = jest.fn().mockResolvedValue({ data: { results: [{ username }] } });
 
-    render(<UsernameMention editor={editor} authClient={authClient} getConfig={getConfig} />);
+    render(<UsernameMention editor={editor} authClient={() => ({ get })} getConfig={getConfig} />);
 
-    act(() => {
-      editor.handlers.keyup();
-      jest.advanceTimersByTime(300);
-    });
+    typeMention(editor);
     fireEvent.click(await screen.findByRole('button', { name: username }));
 
     expect(editor.insertContent).toHaveBeenCalledTimes(1);
@@ -78,5 +95,28 @@ describe('UsernameMention', () => {
     expect(mention.getAttribute('data-username')).toBe(username);
     expect(mention.getAttribute('contenteditable')).toBe('false');
     expect(mention.textContent).toBe(`@${username}`);
+  });
+
+  it('only searches the members of the current course', async () => {
+    const editor = createEditor('Hi @Ja');
+    const get = jest.fn().mockResolvedValue({ data: { results: [] } });
+
+    render(<UsernameMention editor={editor} authClient={() => ({ get })} getConfig={getConfig} />);
+    typeMention(editor);
+
+    expect(get).toHaveBeenCalledWith(
+      `http://lms/wikimedia_general/api/v0/mention_users/${encodeURIComponent(COURSE_ID)}/?search=Ja`,
+    );
+  });
+
+  it('does not search outside of a course', () => {
+    window.history.pushState({}, '', '/discussions/');
+    const editor = createEditor('Hi @Ja');
+    const get = jest.fn();
+
+    render(<UsernameMention editor={editor} authClient={() => ({ get })} getConfig={getConfig} />);
+    typeMention(editor);
+
+    expect(get).not.toHaveBeenCalled();
   });
 });
