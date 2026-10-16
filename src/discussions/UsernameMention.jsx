@@ -22,6 +22,19 @@ const UsernameSuggestions = ({ suggestions, onSelectUsername, onClose }) => {
   );
 };
 
+// The discussions MFE has the course id in its path, e.g. /discussions/course-v1:Org+Num+Run/posts
+export const getCourseIdFromPath = (pathname) => {
+  const match = /\/(course-v1(:|%3A)[^/]+)/i.exec(pathname || '');
+  if (!match) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(match[1]);
+  } catch (error) {
+    return null;
+  }
+};
+
 const UsernameMention = ({ editor, authClient, getConfig }) => {
   const [userSuggestions, setUserSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -59,9 +72,18 @@ const UsernameMention = ({ editor, authClient, getConfig }) => {
       return;
     }
 
+    // Only members of the current course can be mentioned.
+    const courseId = getCourseIdFromPath(window.location.pathname);
+    if (!courseId) {
+      setUserSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
     try {
       const { data } = await authClient().get(
-        `${getConfig().LMS_BASE_URL}/messenger/api/v0/user/?search=${encodeURIComponent(query)}`
+        `${getConfig().LMS_BASE_URL}/wikimedia_general/api/v0/mention_users/${encodeURIComponent(courseId)}/`
+        + `?search=${encodeURIComponent(query)}`
       );
 
       setUserSuggestions(data?.results || []);
@@ -104,7 +126,17 @@ const UsernameMention = ({ editor, authClient, getConfig }) => {
       replaceRange.setStart(container, atIndexInNode);
       replaceRange.setEnd(container, offset);
       resolvedEditor.selection.setRng(replaceRange);
-      resolvedEditor.insertContent(`@${username}&nbsp;`);
+
+      // Usernames may contain spaces and punctuation, so the backend can't tell where a
+      // plain-text "@username" ends. Carry the exact username in a data attribute instead.
+      // contenteditable="false" makes the mention a single unit that can't be partially edited.
+      const { dom } = resolvedEditor;
+      const mention = dom.create(
+        'span',
+        { class: 'wikilearn-mention', 'data-username': username, contenteditable: 'false' },
+        dom.encode(`@${username}`),
+      );
+      resolvedEditor.insertContent(`${dom.getOuterHTML(mention)}&nbsp;`);
 
       setShowSuggestions(false);
       setUserSuggestions([]);
